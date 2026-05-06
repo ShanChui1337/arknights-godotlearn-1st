@@ -2,6 +2,7 @@
 
 [ext_resource type="Texture2D" uid="uid://bbw14hcpni5iu" path="res://resources/texture/动态瓦片.png" id="1_dbls1"]
 [ext_resource type="Texture2D" uid="uid://cxpdmg0lg0inc" path="res://resources/texture/瓦片.png" id="2_33cqm"]
+[ext_resource type="PackedScene" uid="uid://d3xiflyi8nq57" path="res://scene/player.tscn" id="3_33cqm"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xlg7c"]
 texture = ExtResource("2_33cqm")
@@ -82,3 +83,6 @@ tile_set = SubResource("TileSet_p1ry8")
 [node name="Camera2D" type="Camera2D" parent="." unique_id=780484504]
 offset = Vector2(128, 128)
 zoom = Vector2(2, 2)
+
+[node name="Player" parent="." unique_id=1816526948 instance=ExtResource("3_33cqm")]
+position = Vector2(94, 62)

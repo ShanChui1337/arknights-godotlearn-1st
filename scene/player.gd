@@ -142,7 +142,7 @@ func _try_auto_spiral_shoot() -> void:
 	if not shooting_timer.is_stopped():
 		return
 	var spiral_direction := Vector2.RIGHT.rotated(spiral_phase)
-	var has_spawned_bullet := fire_bullets(spiral_direction)
+	var has_spawned_bullet := _fire_bullets(spiral_direction)
 	if has_spawned_bullet:
 		shooting_timer.start(_get_effective_fire_interval())
 		

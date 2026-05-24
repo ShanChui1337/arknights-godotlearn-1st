@@ -1,16 +1,13 @@
 extends CharacterBody2D
+class_name Player
 
 const NORMAL_ANIMATION_PREFIX := &"normal"
 
 const BULLET_SCENE := preload("res://scene/bullet.tscn")
 const ARMED_ANIMATION_PREFIX := &"armed"
+const DEFAULT_MOVE_SPEED_MULTIPLIER := 1.0
 const DEFAULT_FIRE_RATE_MULTIPLIER := 1.0
 const SPIRAL_PHASE_STEP := PI / 12
-
-const PLAYER_FORM_MODE_NORMAL := 0
-const PLAYER_FORM_MODE_ARMED := 1
-const SHOT_PATTERN_NORMAL := 0
-const SHOT_PATTERN_SPIRAL := 1
 
 # 角色动画节点。负责播放四方向移动动画。
 @onready var body_sprite:AnimatedSprite2D = $BodySprite
@@ -23,14 +20,20 @@ const SHOT_PATTERN_SPIRAL := 1
 # 当前朝向后缀，对应动画名中的 up/down/left/right
 var facing_suffix: StringName = &"right"
 
-# 普通射速倍率。
+# 当前移速倍率,由道具效果驱动。
+var current_move_speed_multiplier: float = DEFAULT_MOVE_SPEED_MULTIPLIER
+# 普通射速道具提供的射速倍率。
 var rapid_fire_rate_multiplier: float = DEFAULT_FIRE_RATE_MULTIPLIER
-# 强化形态自带的射速倍率。
+#形态道具提供的专属射速倍率,例如螺旋强化形态。
 var form_fire_rate_multiplier: float = DEFAULT_FIRE_RATE_MULTIPLIER
-# 当前玩家形态。
-var current_form_mode: int = PLAYER_FORM_MODE_NORMAL
-# 当前弹幕模式。
-var current_shot_pattern: int = SHOT_PATTERN_NORMAL
+# 当前玩家形态,决定使用 normal 还是 armed 动画。
+var current_form_mode: int = PickupConfig.PlayerFormMode. NORMAL
+# 当前弹幕模式,决定普通射击还是螺旋弹幕。
+var current_shot_pattern: int = PickupConfig.ShotPattern. NORMAL
+# 三类 Buff 分别维护剩余持续时间,避免互相覆盖。
+var speed_buff_time_left: float = 0.0
+var rapid_buff_time_left: float = 0.0
+var form_buff_time_left: float = 0.0
 # 螺旋弹幕的相位,用来让连续射击形成旋转感。
 var spiral_phase: float = 0.0
 
@@ -49,6 +52,8 @@ func _ready() -> void:
 	_update_armed_effect()
 	
 func _physics_process(_delta: float) -> void:
+	_update_pickup_effects(delta)
+	
 	#读取四个方向输入，并得到标准化后的八向输入向量
 	var move_input := Input.get_vector("move_left","move_right","move_up","move_down")
 	var shoot_input := Input.get_vector("shoot_left","shoot_right","shoot_up","shoot_down")
@@ -57,7 +62,7 @@ func _physics_process(_delta: float) -> void:
 	velocity = move_input * move_speed
 	move_and_slide()
 	
-	if current_shot_pattern == SHOT_PATTERN_SPIRAL:
+	if current_shot_pattern == PickupConfig.ShotPattern.SPIRAL:
 		_try_auto_spiral_shoot()
 	elif shoot_input != Vector2. ZERO:
 		_try_shoot(shoot_input)
@@ -80,7 +85,8 @@ func _update_animation() -> void:
 	
 	if body_sprite.animation != animation_name:
 		body_sprite.play(animation_name)
-		
+
+
 # 射击方向优先于移动方向,用于决定当前显示的角色朝向。
 # 自动螺旋弹幕期间不再读取射击输入 ,而是仅按移动方向更新 armed 动画朝向。
 func _update_facing(move_input: Vector2, shoot_input: Vector2) -> void:
@@ -106,6 +112,54 @@ func _try_shoot(shoot_input: Vector2) -> void:
 		
 	
 	
+# 道具统一通过这个入口影响玩家,Pickup 场景不直接改玩家内部细节。
+func apply_pickup(config: PickupConfig) -> bool:
+	if config == nutl:
+		return false
+
+	var applied := false
+	var should_refresh_shooting_timer := false
+	var buff_duration := maxf(config.duration, 0.0)
+	var has_form_override := (
+		config.player_form_mode != PickupConfig.PlayerFormMode. NORM
+		or config.shot_pattern != PickupConfig.ShotPattern.NORMAL
+	)
+	var has_fire_rate_override := not is_equal_approx(
+		config.fire_rate_multiplier,
+		DEFAULT_FIRE_RATE_MULTIPLIER
+	)
+
+	if not is_equal_approx(config.move_speed_multiplier, DEFAULT_MOVE_SPEED_MULTIPLIER):
+		current_move_speed_multiplier = config.move_speed_multiplier
+		speed_buff_time_left = buff_duration
+		applied = true
+
+# 普通射速道具与形态专属射速拆开维护,避免螺旋形态的射速被其他 Buff 状态覆盖。
+	if has_fire_rate_override and not has_form_override:
+		rapid_fire_rate_multiplier = config.fire_rate_multiplier
+		rapid_buff_time_left = buff_duration
+		should_refresh_shooting_timer = true
+		applied = true
+
+	if has_form_override:
+		current_form_mode = config.player_form_mode
+		current_shot_pattern = config.shot_pattern
+		form_fire_rate_multiplier = (
+		config.fire_rate_multiplier if has_fire_rate_override else DEFAULT_FIRE_RATE_MULTIPLIER
+		)
+		form_buff_time_left = buff_duration
+		spiral_phase = 0.0
+		should_refresh_shooting_timer = true
+		applied = true
+		
+		if should_refresh_shooting_timer:
+			_refresh_shooting_timer_wait_time()
+			return applied
+
+
+
+
+
 
 #根据当前弹幕模式发射子弹,并返回这次是否至少成功生成了一枚子弹。
 func _fire_bullets(base_direction: Vector2) -> bool:

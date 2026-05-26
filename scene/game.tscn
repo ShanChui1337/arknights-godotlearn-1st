@@ -111,6 +111,9 @@ zoom = Vector2(2, 2)
 
 [node name="Player" parent="." unique_id=1816526948 instance=ExtResource("3_33cqm")]
 position = Vector2(94, 62)
+move_speed = 128.0
+fire_interval = 0.18
+bullet_spawn_distance = 18.0
 
 [node name="WorldBounds" type="Node2D" parent="." unique_id=114282308]
 
